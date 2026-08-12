@@ -1,0 +1,241 @@
+/* ==========================================================
+   RESET & BASE
+   ========================================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  /* Fundo em gradiente suave azul claro */
+  background: linear-gradient(135deg, #74b9ff 0%, #a1c4fd 45%, #c2e9fb 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* ==========================================================
+   LAYOUT GERAL
+   ========================================================== */
+.container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================
+   CARD PRINCIPAL
+   ========================================================== */
+.weather-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 380px;
+  border-radius: 24px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 45px rgba(31, 76, 135, 0.25);
+  text-align: center;
+  transition: all 0.3s ease-in-out;
+}
+
+.title {
+  font-size: 1.6rem;
+  color: #2d3a4f;
+  margin-bottom: 24px;
+  font-weight: 700;
+}
+
+/* ==========================================================
+   FORMULÁRIO DE BUSCA
+   ========================================================== */
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #dfe6f0;
+  border-radius: 14px;
+  background: #f4f7fc;
+  font-size: 1rem;
+  color: #2d3a4f;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.search-input:focus {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15);
+}
+
+.search-input::placeholder {
+  color: #9aa7bd;
+}
+
+/* Botão azul de busca */
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: #4a90e2;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.25s ease, transform 0.15s ease;
+}
+
+.search-btn:hover {
+  background: #3a7bc8;
+}
+
+.search-btn:active {
+  transform: scale(0.97);
+}
+
+/* ==========================================================
+   MENSAGEM DE ERRO
+   ========================================================== */
+.error-message {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fdecea;
+  color: #c0392b;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* ==========================================================
+   LOADER
+   ========================================================== */
+.loader {
+  margin-top: 20px;
+  font-size: 1.8rem;
+  color: #4a90e2;
+}
+
+/* ==========================================================
+   RESULTADO DA BUSCA
+   ========================================================== */
+.result-box {
+  margin-top: 20px;
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.weather-icon {
+  font-size: 3.5rem;
+  color: #f0a500;
+  margin-bottom: 8px;
+}
+
+.temperature {
+  font-size: 3.2rem;
+  font-weight: 700;
+  color: #2d3a4f;
+  line-height: 1;
+}
+
+.degree {
+  font-size: 2rem;
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.description {
+  text-transform: capitalize;
+  color: #6b7a90;
+  margin: 6px 0 14px;
+  font-size: 1rem;
+}
+
+.location {
+  font-size: 1.05rem;
+  color: #2d3a4f;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.location i {
+  color: #4a90e2;
+  margin-right: 4px;
+}
+
+/* Informações extras (umidade, vento, sensação) */
+.extra-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #eef2f8;
+  padding-top: 18px;
+}
+
+.extra-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #2d3a4f;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.extra-item i {
+  color: #4a90e2;
+  font-size: 1.1rem;
+}
+
+.extra-item small {
+  color: #9aa7bd;
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+/* ==========================================================
+   UTILITÁRIOS
+   ========================================================== */
+.hidden {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================
+   RESPONSIVIDADE
+   ========================================================== */
+@media (max-width: 420px) {
+  .weather-card {
+    padding: 26px 20px;
+    border-radius: 20px;
+  }
+
+  .title {
+    font-size: 1.4rem;
+  }
+
+  .temperature {
+    font-size: 2.6rem;
+  }
+}

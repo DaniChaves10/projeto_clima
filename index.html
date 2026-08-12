@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Previsão do Tempo</title>
+
+  <!-- Ícones do clima (Font Awesome via CDN) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <main class="container">
+
+    <!-- ===================== CARD PRINCIPAL ===================== -->
+    <section class="weather-card" id="weatherCard">
+
+      <h1 class="title">Previsão do Tempo</h1>
+
+      <!-- ---------- Formulário de busca ---------- -->
+      <form id="searchForm" class="search-form" autocomplete="off">
+        <input
+          type="text"
+          id="cityInput"
+          class="search-input"
+          placeholder="Digite o nome da cidade"
+          required
+        />
+        <button type="submit" class="search-btn">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          Buscar
+        </button>
+      </form>
+
+      <!-- ---------- Mensagem de erro (oculta por padrão) ---------- -->
+      <p id="errorMessage" class="error-message hidden">
+        Cidade não encontrada. Tente novamente.
+      </p>
+
+      <!-- ---------- Loader simples (oculto por padrão) ---------- -->
+      <div id="loader" class="loader hidden">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+      </div>
+
+      <!-- ---------- Resultado da busca (oculto até haver dados) ---------- -->
+      <article id="resultBox" class="result-box hidden">
+        <i id="weatherIcon" class="weather-icon fa-solid fa-cloud-sun"></i>
+
+        <p class="temperature">
+          <span id="temperature">--</span><span class="degree">°</span>
+        </p>
+
+        <p class="description" id="description">--</p>
+
+        <p class="location">
+          <i class="fa-solid fa-location-dot"></i>
+          <span id="cityName">--</span>, <span id="countryName">--</span>
+        </p>
+
+        <div class="extra-info">
+          <div class="extra-item">
+            <i class="fa-solid fa-droplet"></i>
+            <span id="humidity">--%</span>
+            <small>Umidade</small>
+          </div>
+          <div class="extra-item">
+            <i class="fa-solid fa-wind"></i>
+            <span id="windSpeed">-- km/h</span>
+            <small>Vento</small>
+          </div>
+          <div class="extra-item">
+            <i class="fa-solid fa-temperature-half"></i>
+            <span id="feelsLike">--°</span>
+            <small>Sensação</small>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+  </main>
+
+  <!-- Script principal (JS modular ES6+) -->
+  <script src="api.js"></script>
+</body>
+</html>
