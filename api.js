@@ -60,10 +60,26 @@ const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
  */
 
 /**
+ * @typedef {Object} DailyWeather
+ * @property {string[]} time Datas dos dias previstos, em `YYYY-MM-DD`.
+ * @property {number[]} weather_code Código WMO de cada dia.
+ * @property {number[]} temperature_2m_max Temperatura máxima de cada dia, em °C.
+ * @property {number[]} temperature_2m_min Temperatura mínima de cada dia, em °C.
+ */
+
+/**
  * @typedef {Object} Forecast
  * @property {CurrentWeather} current Condições atuais.
  * @property {Object<string, string>} [current_units] Unidades de cada campo de `current`.
+ * @property {DailyWeather} [daily] Previsão diária (arrays paralelos indexados por dia).
+ * @property {Object<string, string>} [daily_units] Unidades de cada campo de `daily`.
  */
+
+/**
+ * Quantidade de dias futuros exibidos na previsão estendida.
+ * @constant {number}
+ */
+const FORECAST_DAYS = 5;
 
 /**
  * Mapa dos códigos WMO retornados pelo Open-Meteo para descrição em português e
@@ -134,6 +150,8 @@ function cacheElements() {
   elements.humidity = document.getElementById("humidity");
   elements.wind = document.getElementById("wind");
   elements.feelsLike = document.getElementById("feels-like");
+  elements.forecast = document.getElementById("daily-forecast");
+  elements.forecastList = document.getElementById("forecast-list");
   return elements;
 }
 
@@ -198,6 +216,22 @@ function formatFullDate(isoTime) {
 }
 
 /**
+ * Formata uma data ISO como dia da semana abreviado em pt-BR, com a inicial maiúscula
+ * e sem o ponto final (ex.: `"Qui"`).
+ *
+ * @param {string} isoDate Data em ISO 8601, normalmente `weather.daily.time[i]`.
+ * @returns {string} Dia da semana abreviado, ou string vazia se a data for inválida.
+ * @example
+ * formatWeekdayShort("2025-10-16"); // "Qui"
+ */
+function formatWeekdayShort(isoDate) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  const weekday = date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(/\.$/, "");
+  return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+}
+
+/**
  * Exibe uma mensagem de erro amigável na área `#error-message` e oculta o card do clima.
  * Não faz nada se o elemento de erro ainda não estiver em cache.
  *
@@ -211,6 +245,7 @@ function showError(message) {
   elements.error.textContent = message;
   elements.error.hidden = false;
   if (elements.card) elements.card.hidden = true;
+  if (elements.forecast) elements.forecast.hidden = true;
 }
 
 /**
@@ -305,15 +340,16 @@ async function getCoordinates(city) {
 }
 
 /**
- * Busca as condições atuais de um ponto geográfico na Forecast API do Open-Meteo
- * (temperatura, umidade, sensação térmica, vento, código WMO e indicador dia/noite).
+ * Busca as condições atuais e a previsão diária de um ponto geográfico na Forecast API
+ * do Open-Meteo (temperatura, umidade, sensação térmica, vento, código WMO, indicador
+ * dia/noite e as máximas/mínimas dos próximos dias).
  * O fuso horário é resolvido automaticamente (`timezone=auto`), então `current.time`
  * já vem no horário local da cidade.
  *
  * @async
  * @param {number} latitude Latitude em graus decimais.
  * @param {number} longitude Longitude em graus decimais.
- * @returns {Promise<Forecast>} Resposta da API contendo `current` e `current_units`.
+ * @returns {Promise<Forecast>} Resposta da API contendo `current`, `current_units` e `daily`.
  * @throws {Error} `"Os dados de clima não estão disponíveis para esta localidade."`
  *   quando a resposta não traz o bloco `current`.
  * @throws {Error} Os mesmos erros de rede/serviço propagados por {@link fetchJson}.
@@ -326,6 +362,8 @@ async function getWeather(latitude, longitude) {
     latitude,
     longitude,
     current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m",
+    daily: "weather_code,temperature_2m_max,temperature_2m_min",
+    forecast_days: String(FORECAST_DAYS + 1),
     timezone: "auto",
   });
   const data = await fetchJson(`${FORECAST_URL}?${params.toString()}`);
@@ -368,6 +406,82 @@ function renderWeather(place, weather) {
 }
 
 /**
+ * Renderiza os cards da previsão dos próximos dias em `#forecast-list`, ignorando o dia
+ * atual e limitando a {@link FORECAST_DAYS} dias. Cada card traz o dia da semana abreviado,
+ * o ícone WMO (variante diurna) e as temperaturas máxima e mínima.
+ * Oculta o container quando a resposta não traz previsão diária.
+ *
+ * @param {Forecast} weather Previsão retornada por {@link getWeather}.
+ * @returns {number} Quantidade de dias efetivamente renderizados.
+ * @example
+ * renderDailyForecast(await getWeather(-23.5475, -46.63611)); // 5
+ */
+function renderDailyForecast(weather) {
+  if (!elements.forecast || !elements.forecastList) return 0;
+
+  const daily = weather.daily;
+  const units = weather.daily_units || {};
+  const unit = units.temperature_2m_max || "°C";
+  elements.forecastList.innerHTML = "";
+
+  if (!daily || !Array.isArray(daily.time) || daily.time.length === 0) {
+    elements.forecast.hidden = true;
+    return 0;
+  }
+
+  const today = weather.current && weather.current.time ? String(weather.current.time).slice(0, 10) : null;
+  const days = daily.time
+    .map((date, index) => ({
+      date,
+      code: daily.weather_code ? daily.weather_code[index] : undefined,
+      max: daily.temperature_2m_max ? daily.temperature_2m_max[index] : undefined,
+      min: daily.temperature_2m_min ? daily.temperature_2m_min[index] : undefined,
+    }))
+    .filter((day) => day.date !== today)
+    .slice(0, FORECAST_DAYS);
+
+  if (days.length === 0) {
+    elements.forecast.hidden = true;
+    return 0;
+  }
+
+  days.forEach((day) => {
+    const { description, icon } = getWeatherInfo(day.code, true);
+
+    const item = document.createElement("li");
+    item.className = "forecast__item";
+    item.dataset.date = day.date;
+
+    const weekday = document.createElement("span");
+    weekday.className = "forecast__weekday";
+    weekday.textContent = formatWeekdayShort(day.date);
+
+    const iconEl = document.createElement("i");
+    iconEl.className = `wi ${icon} forecast__icon`;
+    iconEl.title = description;
+    iconEl.setAttribute("aria-label", description);
+
+    const temps = document.createElement("p");
+    temps.className = "forecast__temps";
+
+    const max = document.createElement("span");
+    max.className = "forecast__max";
+    max.textContent = `${Math.round(day.max)}${unit}`;
+
+    const min = document.createElement("span");
+    min.className = "forecast__min";
+    min.textContent = `${Math.round(day.min)}${unit}`;
+
+    temps.append(max, min);
+    item.append(weekday, iconEl, temps);
+    elements.forecastList.appendChild(item);
+  });
+
+  elements.forecast.hidden = false;
+  return days.length;
+}
+
+/**
  * Fluxo completo da busca: valida a entrada, obtém as coordenadas, busca a previsão
  * e renderiza o card. Nunca rejeita — qualquer falha vira uma mensagem amigável na tela.
  *
@@ -390,6 +504,7 @@ async function searchCity(value) {
     const place = await getCoordinates(validation.city);
     const weather = await getWeather(place.latitude, place.longitude);
     renderWeather(place, weather);
+    renderDailyForecast(weather);
     return true;
   } catch (error) {
     showError(error.message || "Ocorreu um erro inesperado. Tente novamente.");
@@ -437,14 +552,17 @@ if (typeof module !== "undefined" && module.exports) {
     WMO_CODES,
     GEOCODING_URL,
     FORECAST_URL,
+    FORECAST_DAYS,
     cacheElements,
     validateCity,
     getWeatherInfo,
     formatFullDate,
+    formatWeekdayShort,
     fetchJson,
     getCoordinates,
     getWeather,
     renderWeather,
+    renderDailyForecast,
     searchCity,
     applyTheme,
     init,

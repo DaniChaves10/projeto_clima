@@ -29,6 +29,16 @@ const FORECAST = {
     weather_code: 0,
     wind_speed_10m: 5.2,
   },
+  daily_units: {
+    temperature_2m_max: "°C",
+    temperature_2m_min: "°C",
+  },
+  daily: {
+    time: ["2025-10-13", "2025-10-14", "2025-10-15", "2025-10-16", "2025-10-17", "2025-10-18"],
+    weather_code: [0, 2, 61, 95, 3, 71],
+    temperature_2m_max: [26.4, 24.6, 22.1, 20.8, 25.3, 19.5],
+    temperature_2m_min: [15.2, 14.8, 13.4, 12.9, 16.1, 10.4],
+  },
 };
 
 function jsonResponse(body, ok = true, status = 200) {
@@ -160,6 +170,88 @@ describe("busca de cidade válida", () => {
       icon: "wi-night-alt-thunderstorm",
     });
     expect(api.getWeatherInfo(1234, true)).toEqual({ description: "Condição desconhecida", icon: "wi-na" });
+  });
+});
+
+describe("previsão de 5 dias", () => {
+  it("solicita a previsão diária na chamada da API", async () => {
+    const fetchMock = mockFetchSequence(jsonResponse(FORECAST));
+    await api.getWeather(SAO_PAULO.latitude, SAO_PAULO.longitude);
+
+    const url = decodeURIComponent(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("daily=weather_code,temperature_2m_max,temperature_2m_min");
+    expect(url).toContain("timezone=auto");
+  });
+
+  it("renderiza 5 cards ignorando o dia atual", async () => {
+    mockFetchSequence(jsonResponse({ results: [SAO_PAULO] }), jsonResponse(FORECAST));
+    await api.searchCity("São Paulo");
+
+    const container = document.getElementById("daily-forecast");
+    const items = document.querySelectorAll("#forecast-list .forecast__item");
+
+    expect(container.hidden).toBe(false);
+    expect(items).toHaveLength(api.FORECAST_DAYS);
+    expect([...items].map((item) => item.dataset.date)).toEqual([
+      "2025-10-14",
+      "2025-10-15",
+      "2025-10-16",
+      "2025-10-17",
+      "2025-10-18",
+    ]);
+  });
+
+  it("exibe dia da semana, ícone WMO e máxima/mínima em cada card", async () => {
+    mockFetchSequence(jsonResponse({ results: [SAO_PAULO] }), jsonResponse(FORECAST));
+    await api.searchCity("São Paulo");
+
+    const items = document.querySelectorAll("#forecast-list .forecast__item");
+    const first = items[0];
+
+    expect(first.querySelector(".forecast__weekday").textContent).toBe("Ter");
+    expect(first.querySelector(".forecast__icon").className).toBe("wi wi-day-cloudy forecast__icon");
+    expect(first.querySelector(".forecast__icon").getAttribute("aria-label")).toBe("Parcialmente nublado");
+    expect(first.querySelector(".forecast__max").textContent).toBe("25°C");
+    expect(first.querySelector(".forecast__min").textContent).toBe("15°C");
+
+    const last = items[items.length - 1];
+    expect(last.querySelector(".forecast__weekday").textContent).toBe("Sáb");
+    expect(last.querySelector(".forecast__max").textContent).toBe("20°C");
+    expect(last.querySelector(".forecast__min").textContent).toBe("10°C");
+  });
+
+  it("formata o dia da semana abreviado com inicial maiúscula", () => {
+    expect(api.formatWeekdayShort("2025-10-16")).toBe("Qui");
+    expect(api.formatWeekdayShort("data-invalida")).toBe("");
+  });
+
+  it("oculta o container quando a resposta não traz previsão diária", () => {
+    const rendered = api.renderDailyForecast({ current: FORECAST.current });
+
+    expect(rendered).toBe(0);
+    expect(document.getElementById("daily-forecast").hidden).toBe(true);
+    expect(document.querySelectorAll("#forecast-list .forecast__item")).toHaveLength(0);
+  });
+
+  it("substitui os cards da busca anterior", async () => {
+    mockFetchSequence(jsonResponse({ results: [SAO_PAULO] }), jsonResponse(FORECAST));
+    await api.searchCity("São Paulo");
+
+    mockFetchSequence(jsonResponse({ results: [SAO_PAULO] }), jsonResponse(FORECAST));
+    await api.searchCity("São Paulo");
+
+    expect(document.querySelectorAll("#forecast-list .forecast__item")).toHaveLength(api.FORECAST_DAYS);
+  });
+
+  it("oculta a previsão diária quando a busca falha", async () => {
+    mockFetchSequence(jsonResponse({ results: [SAO_PAULO] }), jsonResponse(FORECAST));
+    await api.searchCity("São Paulo");
+    expect(document.getElementById("daily-forecast").hidden).toBe(false);
+
+    mockFetchSequence(jsonResponse({ results: [] }));
+    await api.searchCity("cidadeinexistentexyz");
+
+    expect(document.getElementById("daily-forecast").hidden).toBe(true);
   });
 });
 
