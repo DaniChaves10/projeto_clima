@@ -63,6 +63,33 @@
       <h3 class="forecast__title">Próximos dias</h3>
       <ul id="forecast-list" class="forecast__list"></ul>
     </section>
+    <footer class="footer">
+      <section class="footer__block" aria-labelledby="privacy-title">
+        <h4 id="privacy-title" class="footer__title">
+          <i class="wi wi-cloud-refresh footer__icon" aria-hidden="true"></i>
+          Privacidade
+        </h4>
+        <p class="footer__text">
+          O nome da cidade digitado é enviado apenas à API pública da Open-Meteo para consultar a previsão.
+          Nada é armazenado: esta aplicação não usa cookies de rastreamento, não grava histórico de buscas,
+          não coleta dados pessoais e não possui servidor próprio ou banco de dados.
+        </p>
+      </section>
+
+      <section class="footer__block" aria-labelledby="license-title">
+        <h4 id="license-title" class="footer__title">
+          <i class="wi wi-stars footer__icon" aria-hidden="true"></i>
+          Licenças e atribuições
+        </h4>
+        <p class="footer__text">
+          Dados meteorológicos por
+          <a class="footer__link" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+          (dados abertos sob CC BY 4.0, uso não comercial gratuito) &middot; Ícones por
+          <a class="footer__link" href="https://erikflowers.github.io/weather-icons/" target="_blank" rel="noopener noreferrer">Weather Icons</a>
+          de Erik Flowers (SIL OFL 1.1 e MIT) &middot; Código sob licença MIT.
+        </p>
+      </section>
+    </footer>
   </main>
 
   <script src="api.js"></script>
