@@ -1,6 +1,75 @@
+/**
+ * @file Camada de dados e de interface da aplicação de Previsão do Tempo.
+ * Consome a Geocoding API e a Forecast API do Open-Meteo, trata os erros de forma
+ * amigável e renderiza o resultado no card da página.
+ *
+ * O módulo funciona tanto no navegador (via `<script src="api.js">`, que dispara
+ * {@link init} automaticamente) quanto no Node/Jest (via `require`, sem efeitos colaterais).
+ */
+
+/**
+ * Endpoint da Geocoding API do Open-Meteo (cidade -> latitude/longitude).
+ * @constant {string}
+ */
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
+
+/**
+ * Endpoint da Forecast API do Open-Meteo (coordenadas -> condições atuais).
+ * @constant {string}
+ */
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 
+/**
+ * @typedef {Object} WmoEntry
+ * @property {string} description Descrição da condição do tempo em português.
+ * @property {string} day Classe da Weather Icons usada durante o dia.
+ * @property {string} night Classe da Weather Icons usada durante a noite.
+ */
+
+/**
+ * @typedef {Object} WeatherInfo
+ * @property {string} description Descrição da condição do tempo em português.
+ * @property {string} icon Classe da Weather Icons já escolhida conforme dia/noite.
+ */
+
+/**
+ * @typedef {Object} ValidationResult
+ * @property {boolean} valid Indica se a entrada pode ser enviada à API.
+ * @property {string} city Nome da cidade já normalizado (sem espaços nas extremidades).
+ * @property {string} message Mensagem de erro amigável, ou string vazia quando válido.
+ */
+
+/**
+ * @typedef {Object} Place
+ * @property {string} name Nome da cidade.
+ * @property {number} latitude Latitude em graus decimais.
+ * @property {number} longitude Longitude em graus decimais.
+ * @property {string} [admin1] Estado/região retornada pelo geocoding.
+ * @property {string} [country] País retornado pelo geocoding.
+ */
+
+/**
+ * @typedef {Object} CurrentWeather
+ * @property {string} time Horário local da medição, em ISO 8601.
+ * @property {number} temperature_2m Temperatura do ar a 2 m, em °C.
+ * @property {number} relative_humidity_2m Umidade relativa, em %.
+ * @property {number} apparent_temperature Sensação térmica, em °C.
+ * @property {0|1} is_day 1 durante o dia, 0 durante a noite.
+ * @property {number} weather_code Código WMO da condição do tempo.
+ * @property {number} wind_speed_10m Velocidade do vento a 10 m, em km/h.
+ */
+
+/**
+ * @typedef {Object} Forecast
+ * @property {CurrentWeather} current Condições atuais.
+ * @property {Object<string, string>} [current_units] Unidades de cada campo de `current`.
+ */
+
+/**
+ * Mapa dos códigos WMO retornados pelo Open-Meteo para descrição em português e
+ * ícones da biblioteca Weather Icons (variantes diurna e noturna).
+ * @constant {Object<number, WmoEntry>}
+ */
 const WMO_CODES = {
   0: { description: "Céu limpo", day: "wi-day-sunny", night: "wi-night-clear" },
   1: { description: "Predominantemente limpo", day: "wi-day-sunny-overcast", night: "wi-night-alt-partly-cloudy" },
@@ -32,8 +101,24 @@ const WMO_CODES = {
   99: { description: "Tempestade com granizo forte", day: "wi-storm-showers", night: "wi-storm-showers" },
 };
 
+/**
+ * Cache dos elementos do DOM manipulados pela aplicação, preenchido por {@link cacheElements}.
+ * @type {Object<string, (HTMLElement|null)>}
+ */
 const elements = {};
 
+/**
+ * Busca no documento todos os elementos usados pela aplicação e os guarda em {@link elements}.
+ * Deve ser chamada após o DOM estar disponível; nos testes é chamada a cada `beforeEach`,
+ * depois que o `index.html` é injetado no JSDOM.
+ *
+ * @returns {Object<string, (HTMLElement|null)>} O próprio cache `elements`, já preenchido.
+ *   Campos não encontrados no documento ficam com `null`.
+ * @example
+ * document.body.innerHTML = '<span id="city-name"></span>';
+ * const els = cacheElements();
+ * els.city.textContent = "São Paulo";
+ */
 function cacheElements() {
   elements.form = document.getElementById("search-form");
   elements.cityInput = document.getElementById("city-input");
@@ -52,6 +137,16 @@ function cacheElements() {
   return elements;
 }
 
+/**
+ * Valida e normaliza o texto digitado pelo usuário antes de consultar a API.
+ * Rejeita valores vazios/somente espaços, com menos de 2 caracteres ou sem nenhuma letra.
+ *
+ * @param {string|null|undefined} value Texto informado no campo de busca.
+ * @returns {ValidationResult} Resultado da validação com a mensagem amigável quando inválido.
+ * @example
+ * validateCity("  São Paulo "); // { valid: true, city: "São Paulo", message: "" }
+ * validateCity("12345").valid;  // false
+ */
 function validateCity(value) {
   const city = String(value == null ? "" : value).trim();
   if (!city) {
@@ -66,11 +161,31 @@ function validateCity(value) {
   return { valid: true, city, message: "" };
 }
 
+/**
+ * Traduz um código WMO para descrição em português e para a classe da Weather Icons
+ * correspondente ao período do dia. Códigos desconhecidos caem em um fallback (`wi-na`).
+ *
+ * @param {number} code Código WMO retornado pelo Open-Meteo (ex.: 0, 61, 95).
+ * @param {boolean} isDay `true` para usar o ícone diurno, `false` para o noturno.
+ * @returns {WeatherInfo} Descrição e classe do ícone a aplicar no elemento `#weather-icon`.
+ * @example
+ * getWeatherInfo(95, true);  // { description: "Tempestade", icon: "wi-day-thunderstorm" }
+ * getWeatherInfo(999, true); // { description: "Condição desconhecida", icon: "wi-na" }
+ */
 function getWeatherInfo(code, isDay) {
   const info = WMO_CODES[code] || { description: "Condição desconhecida", day: "wi-na", night: "wi-na" };
   return { description: info.description, icon: isDay ? info.day : info.night };
 }
 
+/**
+ * Formata uma data por extenso no padrão pt-BR (dia da semana, dia, mês e ano).
+ * Sem argumento — ou com uma data inválida — usa a data atual como fallback.
+ *
+ * @param {string} [isoTime] Data/hora em ISO 8601, normalmente `weather.current.time`.
+ * @returns {string} Data por extenso, ex.: `"segunda-feira, 13 de outubro de 2025"`.
+ * @example
+ * formatFullDate("2025-10-13T10:00"); // "segunda-feira, 13 de outubro de 2025"
+ */
 function formatFullDate(isoTime) {
   const date = isoTime ? new Date(isoTime) : new Date();
   const valid = !Number.isNaN(date.getTime()) ? date : new Date();
@@ -82,6 +197,15 @@ function formatFullDate(isoTime) {
   });
 }
 
+/**
+ * Exibe uma mensagem de erro amigável na área `#error-message` e oculta o card do clima.
+ * Não faz nada se o elemento de erro ainda não estiver em cache.
+ *
+ * @param {string} message Mensagem a ser exibida ao usuário.
+ * @returns {void}
+ * @example
+ * showError("Falha de conexão. Verifique sua internet e tente novamente.");
+ */
 function showError(message) {
   if (!elements.error) return;
   elements.error.textContent = message;
@@ -89,21 +213,58 @@ function showError(message) {
   if (elements.card) elements.card.hidden = true;
 }
 
+/**
+ * Limpa e oculta a área de erro, normalmente no início de uma nova busca.
+ *
+ * @returns {void}
+ * @example
+ * clearError();
+ */
 function clearError() {
   if (!elements.error) return;
   elements.error.textContent = "";
   elements.error.hidden = true;
 }
 
+/**
+ * Alterna a visibilidade do indicador de carregamento `#loading`.
+ *
+ * @param {boolean} isLoading `true` mostra o indicador, `false` o esconde.
+ * @returns {void}
+ * @example
+ * setLoading(true);
+ */
 function setLoading(isLoading) {
   if (elements.loading) elements.loading.hidden = !isLoading;
 }
 
+/**
+ * Aplica o tema visual dinâmico trocando as classes do `<body>` entre
+ * `.day-theme` e `.night-theme`.
+ *
+ * @param {boolean} isDay `true` aplica o tema claro (dia), `false` o tema escuro (noite).
+ * @returns {void}
+ * @example
+ * applyTheme(weather.current.is_day === 1);
+ */
 function applyTheme(isDay) {
   document.body.classList.toggle("day-theme", isDay);
   document.body.classList.toggle("night-theme", !isDay);
 }
 
+/**
+ * Executa uma requisição HTTP e devolve o JSON, convertendo qualquer falha
+ * (rede, status HTTP de erro ou corpo inválido) em mensagens amigáveis ao usuário.
+ *
+ * @async
+ * @param {string} url URL completa a ser requisitada.
+ * @returns {Promise<Object>} Corpo da resposta já convertido em objeto.
+ * @throws {Error} `"Falha de conexão..."` quando o `fetch` rejeita (offline/DNS/CORS).
+ * @throws {Error} `"O serviço de clima está indisponível..."` quando o status não é 2xx.
+ * @throws {Error} `"Não foi possível interpretar a resposta..."` quando o corpo não é JSON válido.
+ * @example
+ * const data = await fetchJson("https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0");
+ */
 async function fetchJson(url) {
   let response;
   try {
@@ -121,6 +282,19 @@ async function fetchJson(url) {
   }
 }
 
+/**
+ * Converte o nome de uma cidade em coordenadas usando a Geocoding API do Open-Meteo.
+ * Retorna sempre o primeiro (e mais relevante) resultado.
+ *
+ * @async
+ * @param {string} city Nome da cidade já validado por {@link validateCity}.
+ * @returns {Promise<Place>} Local encontrado, com latitude, longitude, estado e país.
+ * @throws {Error} `'Não encontramos a cidade "<city>"...'` quando a API não retorna resultados.
+ * @throws {Error} Os mesmos erros de rede/serviço propagados por {@link fetchJson}.
+ * @example
+ * const place = await getCoordinates("São Paulo");
+ * console.log(place.latitude, place.longitude); // -23.5475 -46.63611
+ */
 async function getCoordinates(city) {
   const url = `${GEOCODING_URL}?name=${encodeURIComponent(city)}&count=1&language=pt&format=json`;
   const data = await fetchJson(url);
@@ -130,6 +304,23 @@ async function getCoordinates(city) {
   return data.results[0];
 }
 
+/**
+ * Busca as condições atuais de um ponto geográfico na Forecast API do Open-Meteo
+ * (temperatura, umidade, sensação térmica, vento, código WMO e indicador dia/noite).
+ * O fuso horário é resolvido automaticamente (`timezone=auto`), então `current.time`
+ * já vem no horário local da cidade.
+ *
+ * @async
+ * @param {number} latitude Latitude em graus decimais.
+ * @param {number} longitude Longitude em graus decimais.
+ * @returns {Promise<Forecast>} Resposta da API contendo `current` e `current_units`.
+ * @throws {Error} `"Os dados de clima não estão disponíveis para esta localidade."`
+ *   quando a resposta não traz o bloco `current`.
+ * @throws {Error} Os mesmos erros de rede/serviço propagados por {@link fetchJson}.
+ * @example
+ * const weather = await getWeather(-23.5475, -46.63611);
+ * console.log(weather.current.temperature_2m); // 21.4
+ */
 async function getWeather(latitude, longitude) {
   const params = new URLSearchParams({
     latitude,
@@ -144,6 +335,18 @@ async function getWeather(latitude, longitude) {
   return data;
 }
 
+/**
+ * Preenche o card com os dados recebidos, escolhe o ícone WMO conforme dia/noite,
+ * aplica o tema correspondente e exibe o card.
+ * Requer que {@link cacheElements} já tenha sido executada.
+ *
+ * @param {Place} place Local retornado pelo geocoding.
+ * @param {Forecast} weather Previsão retornada por {@link getWeather}.
+ * @returns {void}
+ * @example
+ * const place = await getCoordinates("São Paulo");
+ * renderWeather(place, await getWeather(place.latitude, place.longitude));
+ */
 function renderWeather(place, weather) {
   const current = weather.current;
   const units = weather.current_units || {};
@@ -164,6 +367,17 @@ function renderWeather(place, weather) {
   elements.card.hidden = false;
 }
 
+/**
+ * Fluxo completo da busca: valida a entrada, obtém as coordenadas, busca a previsão
+ * e renderiza o card. Nunca rejeita — qualquer falha vira uma mensagem amigável na tela.
+ *
+ * @async
+ * @param {string} value Texto digitado pelo usuário (validado internamente).
+ * @returns {Promise<boolean>} `true` quando o card foi renderizado, `false` quando houve erro.
+ * @example
+ * const ok = await searchCity("Tóquio");
+ * if (!ok) console.log("A mensagem de erro já está visível na página.");
+ */
 async function searchCity(value) {
   const validation = validateCity(value);
   if (!validation.valid) {
@@ -185,6 +399,18 @@ async function searchCity(value) {
   }
 }
 
+/**
+ * Inicializa a aplicação: guarda os elementos do DOM, registra o `submit` do formulário,
+ * aplica o tema inicial pelo horário local, exibe a data por extenso e, opcionalmente,
+ * faz uma busca inicial. É chamada automaticamente no navegador.
+ *
+ * @param {?string} [defaultCity="São Paulo"] Cidade carregada ao abrir a página;
+ *   passe `null` para não disparar nenhuma busca (usado nos testes).
+ * @returns {void}
+ * @example
+ * init();      // inicializa e já carrega São Paulo
+ * init(null);  // inicializa sem busca automática
+ */
 function init(defaultCity = "São Paulo") {
   cacheElements();
   if (!elements.form) return;
@@ -200,10 +426,12 @@ function init(defaultCity = "São Paulo") {
   if (defaultCity) searchCity(defaultCity);
 }
 
+// No navegador não existe `module`, então a aplicação inicializa sozinha.
 if (typeof window !== "undefined" && typeof module === "undefined") {
   init();
 }
 
+// No Node/Jest as funções são exportadas sem que nada seja executado na importação.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     WMO_CODES,
