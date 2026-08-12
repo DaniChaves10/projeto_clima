@@ -1,21 +1,6 @@
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 
-const form = document.getElementById("search-form");
-const cityInput = document.getElementById("city-input");
-const errorEl = document.getElementById("error-message");
-const loadingEl = document.getElementById("loading");
-const cardEl = document.getElementById("weather-card");
-const dateEl = document.getElementById("current-date");
-const cityEl = document.getElementById("city-name");
-const countryEl = document.getElementById("country-name");
-const iconEl = document.getElementById("weather-icon");
-const temperatureEl = document.getElementById("temperature");
-const descriptionEl = document.getElementById("description");
-const humidityEl = document.getElementById("humidity");
-const windEl = document.getElementById("wind");
-const feelsLikeEl = document.getElementById("feels-like");
-
 const WMO_CODES = {
   0: { description: "Céu limpo", day: "wi-day-sunny", night: "wi-night-clear" },
   1: { description: "Predominantemente limpo", day: "wi-day-sunny-overcast", night: "wi-night-alt-partly-cloudy" },
@@ -47,6 +32,40 @@ const WMO_CODES = {
   99: { description: "Tempestade com granizo forte", day: "wi-storm-showers", night: "wi-storm-showers" },
 };
 
+const elements = {};
+
+function cacheElements() {
+  elements.form = document.getElementById("search-form");
+  elements.cityInput = document.getElementById("city-input");
+  elements.error = document.getElementById("error-message");
+  elements.loading = document.getElementById("loading");
+  elements.card = document.getElementById("weather-card");
+  elements.date = document.getElementById("current-date");
+  elements.city = document.getElementById("city-name");
+  elements.country = document.getElementById("country-name");
+  elements.icon = document.getElementById("weather-icon");
+  elements.temperature = document.getElementById("temperature");
+  elements.description = document.getElementById("description");
+  elements.humidity = document.getElementById("humidity");
+  elements.wind = document.getElementById("wind");
+  elements.feelsLike = document.getElementById("feels-like");
+  return elements;
+}
+
+function validateCity(value) {
+  const city = String(value == null ? "" : value).trim();
+  if (!city) {
+    return { valid: false, city: "", message: "Digite o nome de uma cidade para buscar a previsão." };
+  }
+  if (city.length < 2) {
+    return { valid: false, city, message: "Digite ao menos 2 caracteres para buscar a previsão." };
+  }
+  if (!/[\p{L}]/u.test(city)) {
+    return { valid: false, city, message: "Digite um nome de cidade válido (apenas números não são aceitos)." };
+  }
+  return { valid: true, city, message: "" };
+}
+
 function getWeatherInfo(code, isDay) {
   const info = WMO_CODES[code] || { description: "Condição desconhecida", day: "wi-na", night: "wi-na" };
   return { description: info.description, icon: isDay ? info.day : info.night };
@@ -64,18 +83,20 @@ function formatFullDate(isoTime) {
 }
 
 function showError(message) {
-  errorEl.textContent = message;
-  errorEl.hidden = false;
-  cardEl.hidden = true;
+  if (!elements.error) return;
+  elements.error.textContent = message;
+  elements.error.hidden = false;
+  if (elements.card) elements.card.hidden = true;
 }
 
 function clearError() {
-  errorEl.textContent = "";
-  errorEl.hidden = true;
+  if (!elements.error) return;
+  elements.error.textContent = "";
+  elements.error.hidden = true;
 }
 
 function setLoading(isLoading) {
-  loadingEl.hidden = !isLoading;
+  if (elements.loading) elements.loading.hidden = !isLoading;
 }
 
 function applyTheme(isDay) {
@@ -129,45 +150,76 @@ function renderWeather(place, weather) {
   const isDay = current.is_day === 1;
   const { description, icon } = getWeatherInfo(current.weather_code, isDay);
 
-  dateEl.textContent = formatFullDate(current.time);
-  cityEl.textContent = place.name;
-  countryEl.textContent = [place.admin1, place.country].filter(Boolean).join(" - ");
-  iconEl.className = `wi ${icon} card__icon`;
-  temperatureEl.textContent = `${Math.round(current.temperature_2m)}${units.temperature_2m || "°C"}`;
-  descriptionEl.textContent = description;
-  humidityEl.textContent = `${Math.round(current.relative_humidity_2m)}${units.relative_humidity_2m || "%"}`;
-  windEl.textContent = `${Math.round(current.wind_speed_10m)} ${units.wind_speed_10m || "km/h"}`;
-  feelsLikeEl.textContent = `${Math.round(current.apparent_temperature)}${units.apparent_temperature || "°C"}`;
+  elements.date.textContent = formatFullDate(current.time);
+  elements.city.textContent = place.name;
+  elements.country.textContent = [place.admin1, place.country].filter(Boolean).join(" - ");
+  elements.icon.className = `wi ${icon} card__icon`;
+  elements.temperature.textContent = `${Math.round(current.temperature_2m)}${units.temperature_2m || "°C"}`;
+  elements.description.textContent = description;
+  elements.humidity.textContent = `${Math.round(current.relative_humidity_2m)}${units.relative_humidity_2m || "%"}`;
+  elements.wind.textContent = `${Math.round(current.wind_speed_10m)} ${units.wind_speed_10m || "km/h"}`;
+  elements.feelsLike.textContent = `${Math.round(current.apparent_temperature)}${units.apparent_temperature || "°C"}`;
 
   applyTheme(isDay);
-  cardEl.hidden = false;
+  elements.card.hidden = false;
 }
 
-async function searchCity(city) {
+async function searchCity(value) {
+  const validation = validateCity(value);
+  if (!validation.valid) {
+    showError(validation.message);
+    return false;
+  }
   clearError();
   setLoading(true);
   try {
-    const place = await getCoordinates(city);
+    const place = await getCoordinates(validation.city);
     const weather = await getWeather(place.latitude, place.longitude);
     renderWeather(place, weather);
+    return true;
   } catch (error) {
     showError(error.message || "Ocorreu um erro inesperado. Tente novamente.");
+    return false;
   } finally {
     setLoading(false);
   }
 }
 
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const city = cityInput.value.trim();
-  if (!city) {
-    showError("Digite o nome de uma cidade para buscar a previsão.");
-    return;
-  }
-  searchCity(city);
-});
+function init(defaultCity = "São Paulo") {
+  cacheElements();
+  if (!elements.form) return;
 
-const localHour = new Date().getHours();
-applyTheme(localHour >= 6 && localHour < 18);
-dateEl.textContent = formatFullDate();
-searchCity("São Paulo");
+  elements.form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    searchCity(elements.cityInput ? elements.cityInput.value : "");
+  });
+
+  const localHour = new Date().getHours();
+  applyTheme(localHour >= 6 && localHour < 18);
+  elements.date.textContent = formatFullDate();
+  if (defaultCity) searchCity(defaultCity);
+}
+
+if (typeof window !== "undefined" && typeof module === "undefined") {
+  init();
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    WMO_CODES,
+    GEOCODING_URL,
+    FORECAST_URL,
+    cacheElements,
+    validateCity,
+    getWeatherInfo,
+    formatFullDate,
+    fetchJson,
+    getCoordinates,
+    getWeather,
+    renderWeather,
+    searchCity,
+    applyTheme,
+    init,
+    elements,
+  };
+}
