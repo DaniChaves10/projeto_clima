@@ -4,88 +4,62 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Previsão do Tempo</title>
-
-  <!-- Ícones do clima (Font Awesome via CDN) -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-  />
-
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-
+<body class="day-theme">
   <main class="container">
+    <h1 class="title">Previsão do Tempo</h1>
 
-    <!-- ===================== CARD PRINCIPAL ===================== -->
-    <section class="weather-card" id="weatherCard">
+    <form id="search-form" class="search" autocomplete="off">
+      <input
+        type="text"
+        id="city-input"
+        class="search__input"
+        placeholder="Digite o nome da cidade"
+        aria-label="Nome da cidade"
+      />
+      <button type="submit" id="search-button" class="search__button">Buscar</button>
+    </form>
 
-      <h1 class="title">Previsão do Tempo</h1>
+    <p id="error-message" class="error" role="alert" hidden></p>
+    <p id="loading" class="loading" hidden>Carregando...</p>
 
-      <!-- ---------- Formulário de busca ---------- -->
-      <form id="searchForm" class="search-form" autocomplete="off">
-        <input
-          type="text"
-          id="cityInput"
-          class="search-input"
-          placeholder="Digite o nome da cidade"
-          required
-        />
-        <button type="submit" class="search-btn">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          Buscar
-        </button>
-      </form>
+    <section id="weather-card" class="card" hidden>
+      <p id="current-date" class="card__date"></p>
 
-      <!-- ---------- Mensagem de erro (oculta por padrão) ---------- -->
-      <p id="errorMessage" class="error-message hidden">
-        Cidade não encontrada. Tente novamente.
-      </p>
-
-      <!-- ---------- Loader simples (oculto por padrão) ---------- -->
-      <div id="loader" class="loader hidden">
-        <i class="fa-solid fa-spinner fa-spin"></i>
+      <div class="card__location">
+        <h2 id="city-name" class="card__city"></h2>
+        <span id="country-name" class="card__country"></span>
       </div>
 
-      <!-- ---------- Resultado da busca (oculto até haver dados) ---------- -->
-      <article id="resultBox" class="result-box hidden">
-        <i id="weatherIcon" class="weather-icon fa-solid fa-cloud-sun"></i>
+      <div class="card__main">
+        <i id="weather-icon" class="wi wi-day-sunny card__icon" aria-hidden="true"></i>
+        <p id="temperature" class="card__temperature"></p>
+      </div>
 
-        <p class="temperature">
-          <span id="temperature">--</span><span class="degree">°</span>
-        </p>
+      <p id="description" class="card__description"></p>
 
-        <p class="description" id="description">--</p>
-
-        <p class="location">
-          <i class="fa-solid fa-location-dot"></i>
-          <span id="cityName">--</span>, <span id="countryName">--</span>
-        </p>
-
-        <div class="extra-info">
-          <div class="extra-item">
-            <i class="fa-solid fa-droplet"></i>
-            <span id="humidity">--%</span>
-            <small>Umidade</small>
-          </div>
-          <div class="extra-item">
-            <i class="fa-solid fa-wind"></i>
-            <span id="windSpeed">-- km/h</span>
-            <small>Vento</small>
-          </div>
-          <div class="extra-item">
-            <i class="fa-solid fa-temperature-half"></i>
-            <span id="feelsLike">--°</span>
-            <small>Sensação</small>
-          </div>
-        </div>
-      </article>
-
+      <ul class="details">
+        <li class="details__item">
+          <i class="wi wi-humidity details__icon" aria-hidden="true"></i>
+          <span class="details__label">Umidade</span>
+          <span id="humidity" class="details__value"></span>
+        </li>
+        <li class="details__item">
+          <i class="wi wi-strong-wind details__icon" aria-hidden="true"></i>
+          <span class="details__label">Vento</span>
+          <span id="wind" class="details__value"></span>
+        </li>
+        <li class="details__item">
+          <i class="wi wi-thermometer details__icon" aria-hidden="true"></i>
+          <span class="details__label">Sensação</span>
+          <span id="feels-like" class="details__value"></span>
+        </li>
+      </ul>
     </section>
-
   </main>
 
-  <!-- Script principal (JS modular ES6+) -->
   <script src="api.js"></script>
 </body>
 </html>
